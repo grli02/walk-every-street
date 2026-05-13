@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Client } from 'pg';
 
 const db = () => new Client({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'walk_every_street',
-  password: 'postgres',
-  port: 5432,
+  user: process.env.DB_USER,
+  host: process.env.DB_HOST,
+  database: process.env.DB_NAME,
+  password: process.env.DB_PASSWORD,
+  port: parseInt(process.env.DB_PORT ?? '5432'),
 });
 
 function parseGpx(xml: string): [number, number][] {
@@ -25,14 +25,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Ingen GPS-punkter fundet' }, { status: 400 });
   }
 
-  // Byg LineString fra GPX-koordinater
   const wkt = `LINESTRING(${coords.map(c => `${c[0]} ${c[1]}`).join(', ')})`;
 
   const client = db();
   await client.connect();
 
   try {
-    // Gem walk
     const walkResult = await client.query(
       `INSERT INTO walks (filename, geom, distance_m)
        VALUES ($1, ST_GeomFromText($2, 4326), ST_Length(ST_GeomFromText($2, 4326)::geography))
@@ -41,7 +39,6 @@ export async function POST(req: NextRequest) {
     );
     const walkId = walkResult.rows[0].id;
 
-    // Match mod vejsegmenter inden for 15 meter
     await client.query(
       `INSERT INTO walked_streets (walk_id, street_id)
        SELECT $1, s.id
@@ -51,7 +48,6 @@ export async function POST(req: NextRequest) {
       [walkId, wkt]
     );
 
-    // Hent coverage
     const coverage = await client.query(
       `SELECT
         COUNT(DISTINCT ws.street_id) AS walked,
