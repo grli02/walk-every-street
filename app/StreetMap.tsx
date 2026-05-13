@@ -7,13 +7,13 @@ export default function StreetMap() {
   const mapInstance = useRef<any>(null);
 
   useEffect(() => {
-    if (mapInstance.current) return;
+    let cancelled = false;
 
     async function initMap() {
       const L = (await import('leaflet')).default;
       await import('leaflet/dist/leaflet.css');
 
-      if (!mapRef.current) return;
+      if (cancelled || !mapRef.current) return;
 
       const map = L.map(mapRef.current).setView([55.676, 12.510], 14);
       mapInstance.current = map;
@@ -24,6 +24,8 @@ export default function StreetMap() {
 
       const res = await fetch('/api/streets');
       const geojson = await res.json();
+
+      if (cancelled) return;
 
       L.geoJSON(geojson, {
         style: (feature) => ({
@@ -37,15 +39,28 @@ export default function StreetMap() {
           }
         },
       }).addTo(map);
+
+      setTimeout(() => map.invalidateSize(), 200);
     }
 
     initMap();
+
+    return () => {
+      cancelled = true;
+      if (mapInstance.current) {
+        mapInstance.current.remove();
+        mapInstance.current = null;
+      }
+    };
   }, []);
 
   return (
-    <div
-      ref={mapRef}
-      style={{ height: '500px', width: '100%', borderRadius: '12px' }}
-    />
+    <div ref={mapRef} style={{
+      height: '500px',
+      width: '100%',
+      minWidth: '400px',
+      borderRadius: '12px',
+      zIndex: 0,
+    }} />
   );
 }
