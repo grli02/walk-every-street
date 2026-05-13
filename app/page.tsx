@@ -21,7 +21,9 @@ export default function Home() {
   function reload() {
     fetch('/api/coverage').then(r => r.json()).then(setCoverage);
     fetch('/api/missing').then(r => r.json()).then(setMissing);
-    fetch('/api/walks').then(r => r.json()).then(setWalks);
+    fetch('/api/walks').then(r => r.json()).then(data => {
+      setWalks(data);
+    });
   }
 
   useEffect(() => { reload(); }, []);
@@ -49,6 +51,13 @@ export default function Home() {
 
   function formatDate(iso: string) {
     return new Date(iso).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
+  }
+
+  async function deleteWalk(id: string) {
+    const res = await fetch(`/api/walks/${id}`, { method: 'DELETE' });
+    await new Promise(r => setTimeout(r, 300));
+    reload();
+    setMapKey(k => k + 1);
   }
 
   function formatDistance(m: number) {
@@ -100,9 +109,16 @@ export default function Home() {
             <p className="label">Ture ({walks.length})</p>
             {walks.map(w => (
               <div key={w.id} className="walk-card">
-                <p className="walk-card-title">
-                  {w.filename.replace('.gpx', '').replace(/_/g, ' ')}
-                </p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <p className="walk-card-title" style={{ flex: 1 }}>
+                    {w.filename.replace('.gpx', '').replace(/_/g, ' ')}
+                  </p>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); deleteWalk(w.id); }}
+                    style={{ background: 'none', border: 'none', color: '#555', cursor: 'pointer', fontSize: '14px', padding: '0 0 0 8px', lineHeight: 1 }}
+                    title="Slet tur"
+                  >✕</button>
+                </div>
                 <div className="walk-card-meta">
                   <span>{formatDate(w.uploaded_at)}</span>
                   <span>{formatDistance(w.distance_m)}</span>

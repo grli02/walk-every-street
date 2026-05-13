@@ -19,10 +19,28 @@ export async function POST(req: NextRequest) {
   const file = formData.get('file') as File;
   if (!file) return NextResponse.json({ error: 'Ingen fil' }, { status: 400 });
 
+  if (!file.name.endsWith('.gpx')) {
+    return NextResponse.json({ error: 'Kun GPX-filer er tilladt' }, { status: 400 });
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    return NextResponse.json({ error: 'Fil må maks være 10 MB' }, { status: 400 });
+  }
+
   const xml = await file.text();
+
+  if (!xml.includes('<trkpt')) {
+    return NextResponse.json({ error: 'Filen indeholder ingen GPS-punkter' }, { status: 400 });
+  }
+
   const coords = parseGpx(xml);
+
   if (coords.length < 2) {
     return NextResponse.json({ error: 'Ingen GPS-punkter fundet' }, { status: 400 });
+  }
+
+  if (coords.length > 50000) {
+    return NextResponse.json({ error: 'Ruten har for mange punkter (maks 50.000)' }, { status: 400 });
   }
 
   const wkt = `LINESTRING(${coords.map(c => `${c[0]} ${c[1]}`).join(', ')})`;
