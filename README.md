@@ -2,7 +2,8 @@
 
 A full-stack web app that tracks which streets you have walked in Frederiksberg. Upload a GPX file from any run or walk, and the app matches your route against OpenStreetMap road data using PostGIS spatial queries.
 
-<img width="707" height="486" alt="Skærmbillede 2026-05-13 114438" src="https://github.com/user-attachments/assets/070f4128-8ec4-45ec-8e46-87586014728e" />
+<img width="953" height="497" alt="Skærmbillede 2026-05-13 123322" src="https://github.com/user-attachments/assets/6715b5e2-608c-406b-950e-478d0d663cc4" />
+
 
 ## How it works
 
