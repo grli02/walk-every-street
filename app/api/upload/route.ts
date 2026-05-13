@@ -34,9 +34,15 @@ export async function POST(req: NextRequest) {
     const walkResult = await client.query(
       `INSERT INTO walks (filename, geom, distance_m)
        VALUES ($1, ST_GeomFromText($2, 4326), ST_Length(ST_GeomFromText($2, 4326)::geography))
+       ON CONFLICT (filename) DO NOTHING
        RETURNING id`,
       [file.name, wkt]
     );
+
+    if (walkResult.rows.length === 0) {
+      return NextResponse.json({ error: 'En tur med dette filnavn er allerede uploadet' }, { status: 409 });
+    }
+
     const walkId = walkResult.rows[0].id;
 
     await client.query(

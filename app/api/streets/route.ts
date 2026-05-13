@@ -20,28 +20,24 @@ export async function GET() {
         s.name,
         s.highway_type,
         ST_AsGeoJSON(s.geom) AS geojson,
-        CASE WHEN ws.street_id IS NOT NULL THEN true ELSE false END AS walked
+        COUNT(ws.walk_id) AS walk_count
       FROM streets s
-      LEFT JOIN (
-        SELECT DISTINCT street_id FROM walked_streets
-      ) ws ON ws.street_id = s.id
+      LEFT JOIN walked_streets ws ON ws.street_id = s.id
+      GROUP BY s.id
     `);
 
     const features = result.rows.map(row => ({
       type: 'Feature',
       properties: {
-        id: row.id,
-        name: row.name,
+        id:         row.id,
+        name:       row.name,
         highway_type: row.highway_type,
-        walked: row.walked,
+        walk_count: parseInt(row.walk_count),
       },
       geometry: JSON.parse(row.geojson),
     }));
 
-    return NextResponse.json({
-      type: 'FeatureCollection',
-      features,
-    });
+    return NextResponse.json({ type: 'FeatureCollection', features });
   } finally {
     await client.end();
   }

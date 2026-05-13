@@ -1,25 +1,30 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 
 const StreetMap = dynamic(() => import('./StreetMap'), { ssr: false });
 
-type Result = { walked: number; total: number; pct: string };
+type Coverage = { walked: number; total: number; pct: string };
 type MissingStreet = { name: string; highway_type: string; segments: number };
+type Walk = { id: string; filename: string; uploaded_at: string; distance_m: number; streets_covered: number };
 
 export default function Home() {
-  const [result, setResult] = useState<Result | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [missing, setMissing] = useState<MissingStreet[]>([]);
-  const [mapKey, setMapKey] = useState(0);
+  const [coverage, setCoverage]   = useState<Coverage | null>(null);
+  const [missing, setMissing]     = useState<MissingStreet[]>([]);
+  const [walks, setWalks]         = useState<Walk[]>([]);
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState<string | null>(null);
+  const [mapKey, setMapKey]       = useState(0);
+  const fileRef                   = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    fetch('/api/missing')
-      .then(r => r.json())
-      .then(setMissing);
-  }, [result]);
+  function reload() {
+    fetch('/api/coverage').then(r => r.json()).then(setCoverage);
+    fetch('/api/missing').then(r => r.json()).then(setMissing);
+    fetch('/api/walks').then(r => r.json()).then(setWalks);
+  }
+
+  useEffect(() => { reload(); }, []);
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -32,62 +37,103 @@ export default function Home() {
       const res = await fetch('/api/upload', { method: 'POST', body: formData });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
-      setResult(data);
+      reload();
       setMapKey(k => k + 1);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
+      if (fileRef.current) fileRef.current.value = '';
     }
   }
 
+  function formatDate(iso: string) {
+    return new Date(iso).toLocaleDateString('da-DK', { day: 'numeric', month: 'short' });
+  }
+
+  function formatDistance(m: number) {
+    return m >= 1000 ? `${(m / 1000).toFixed(1)} km` : `${Math.round(m)} m`;
+  }
+
+  const pct    = coverage?.pct ?? '0.0';
+  const walked = coverage?.walked ?? 0;
+  const total  = coverage?.total ?? 0;
+
   return (
-    <main style={{ height: '100vh', padding: '1.5rem', maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+    <div className="app-shell">
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-        <div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 'bold', margin: 0 }}>Walk Every Street</h1>
-          <p style={{ color: '#6b7280', margin: '0.25rem 0 0' }}>Frederiksberg</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          {loading && <span style={{ color: '#6b7280', fontSize: '0.875rem' }}>Analyserer...</span>}
-          {error && <span style={{ color: '#b91c1c', fontSize: '0.875rem' }}>{error}</span>}
-          <input type="file" accept=".gpx" onChange={handleUpload} style={{ fontSize: '0.875rem' }} />
-        </div>
-      </div>
+      <aside className="sidebar">
 
-      <div style={{ display: 'flex', gap: '1.5rem', flex: 1, minHeight: 0 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <StreetMap key={mapKey} />
+        <div className="sidebar-section">
+          <p className="app-name">Walk Every Street</p>
+          <h1 className="city-name">Frederiksberg</h1>
         </div>
 
-        <div style={{ width: '260px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {result && (
-            <div style={{ background: '#f9fafb', borderRadius: '12px', padding: '1rem' }}>
-              <div style={{ fontSize: '2.5rem', fontWeight: 'bold', lineHeight: 1 }}>{result.pct}%</div>
-              <div style={{ color: '#6b7280', fontSize: '0.875rem', margin: '0.25rem 0' }}>af Frederiksberg dækket</div>
-              <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>{result.walked} af {result.total} segmenter</div>
-            </div>
-          )}
-
-          <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
-            <h2 style={{ fontSize: '0.75rem', fontWeight: '600', color: '#6b7280', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.5rem' }}>
-              Manglende gader
-            </h2>
-            <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-              {missing.map((s, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 8px', borderRadius: '6px' }}>
-                  <div>
-                    <div style={{ fontSize: '0.8rem', fontWeight: '500' }}>{s.name}</div>
-                    <div style={{ fontSize: '0.7rem', color: '#9ca3af' }}>{s.highway_type}</div>
-                  </div>
-                  <div style={{ fontSize: '0.7rem', color: '#9ca3af', marginLeft: '8px' }}>{s.segments} seg.</div>
-                </div>
-              ))}
-            </div>
+        <div className="sidebar-section">
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px' }}>
+            <span className="coverage-number">{pct}</span>
+            <span className="coverage-unit">%</span>
+          </div>
+          <p className="coverage-sub">{walked} af {total} vejsegmenter</p>
+          <div className="progress-track">
+            <div className="progress-fill" style={{ width: `${pct}%` }} />
           </div>
         </div>
+
+        <div className="sidebar-section">
+          <input
+            ref={fileRef}
+            id="gpx-upload"
+            type="file"
+            accept=".gpx"
+            onChange={handleUpload}
+            style={{ display: 'none' }}
+          />
+          <label htmlFor="gpx-upload" className={`upload-btn${loading ? ' loading' : ''}`}>
+            {loading ? '⟳  Analyserer...' : '↑  Upload GPX-fil'}
+          </label>
+          {error && <p className="error-box">{error}</p>}
+        </div>
+
+        {walks.length > 0 && (
+          <div className="sidebar-section">
+            <p className="label">Ture ({walks.length})</p>
+            {walks.map(w => (
+              <div key={w.id} className="walk-card">
+                <p className="walk-card-title">
+                  {w.filename.replace('.gpx', '').replace(/_/g, ' ')}
+                </p>
+                <div className="walk-card-meta">
+                  <span>{formatDate(w.uploaded_at)}</span>
+                  <span>{formatDistance(w.distance_m)}</span>
+                  <span className="streets">{w.streets_covered} gader</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="sidebar-scroll">
+          <p className="label">Manglende gader</p>
+          <div className="missing-list">
+            {missing.map((s, i) => (
+              <div key={i} className="missing-row">
+                <div>
+                  <p className="missing-name">{s.name}</p>
+                  <p className="missing-type">{s.highway_type}</p>
+                </div>
+                <span className="missing-count">{s.segments}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+      </aside>
+
+      <div className="map-panel">
+        <StreetMap key={mapKey} />
       </div>
-    </main>
+
+    </div>
   );
 }
